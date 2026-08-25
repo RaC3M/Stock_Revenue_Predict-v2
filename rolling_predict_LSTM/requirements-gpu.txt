@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# PyTorch CUDA build for the Rolling LSTM Forecast System.
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.11.0+cu130

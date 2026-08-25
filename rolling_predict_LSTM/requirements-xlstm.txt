@@ -1,0 +1,4 @@
+-r requirements-gpu.txt
+
+# Optional historical mLSTM-only and current mLSTM+sLSTM Hybrid dependency.
+xlstm==2.0.5

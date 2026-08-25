@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-08-20T21:53:20+08:00",
+  "selection_period": "2023-01 to 2024-12",
+  "test_period": "2025-01 to 2025-12",
+  "selected_structural_break_config": {
+    "yoy_ratio_threshold": 0.2,
+    "level_ratio_threshold": 0.3,
+    "formula_retention": 0.0,
+    "recent_ratio_threshold": 0.2,
+    "required_recent_breaks": 2
+  },
+  "selected_sarima_weight": 0.1,
+  "selected_formula_weight": 0.9,
+  "validation_balanced_score": 12.687617436359517,
+  "complete_operational_stock_count": 1862,
+  "test_break_rows": 244,
+  "stocks_improved": 370,
+  "stocks_rescued_below_15pct": 0,
+  "baseline_WMAPE": 10.57876933616699,
+  "improved_WMAPE": 10.576264377288156,
+  "exploratory_note": "The structural-break concept was added after reviewing a 2025 failure case; parameters and weights were selected only on 2023-2024, but the 2025 result should still be treated as an exploratory comparison."
+}

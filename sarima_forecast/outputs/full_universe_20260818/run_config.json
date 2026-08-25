@@ -1,0 +1,25 @@
+{
+  "started_at": "2026-08-18T15:32:15+08:00",
+  "revenue_file": "C:\\Users\\KAO\\Desktop\\code\\Project 0806\\Stock_Revenue_Predict-main\\data\\Stock_revenue_2019~2025.csv",
+  "requested_stock_count": 1958,
+  "worker_count": 8,
+  "sarima_orders": [
+    "(0, 1, 1)",
+    "(1, 1, 0)",
+    "(1, 1, 1)"
+  ],
+  "seasonal_orders": [
+    "(0, 1, 1, 12)",
+    "(1, 1, 0, 12)",
+    "(0, 1, 0, 12)"
+  ],
+  "forecast_year": 2025,
+  "min_history_months": 36,
+  "confidence_level": 0.95,
+  "maxiter": 100,
+  "finished_at": "2026-08-18T15:32:16+08:00",
+  "completed_stock_count": 1958,
+  "failed_stock_count": 0,
+  "complete_12m_stock_count": 1867,
+  "quality_issue_count": 74
+}

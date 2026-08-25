@@ -1,0 +1,4 @@
+streamlit==1.61.1
+pandas==3.0.5
+numpy==2.5.2
+statsmodels==0.14.6

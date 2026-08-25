@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local runtime/cache files
+.streamlit/
+.scratch/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# Model/training outputs
+catboost_info/
+outputs/
+rolling_predict_LSTM/.venv/
+rolling_predict_LSTM/__pycache__/
+rolling_predict_LSTM/紀錄/
+free_taiwan_data/
+
+# Legacy duplicate data kept outside the canonical data/ directory
+/day K2020~2025.csv
+/Dividend2019~2025.csv
+/EPS2020~2025.csv
+/Stock_revenue_2019~2025.csv
+/stock_list_new.csv
+/target_stocks_2025.csv
+/manifest.json
+/drive-download-*.zip
+
+# Backups and generated artifacts
+*.bak
+*.tmp
+*.temp
+~$*.docx
+~$*.xlsx
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

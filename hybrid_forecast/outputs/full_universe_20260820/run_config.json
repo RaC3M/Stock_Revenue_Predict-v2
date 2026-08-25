@@ -1,0 +1,38 @@
+{
+  "started_at": "2026-08-20T19:19:31+08:00",
+  "validation_years": [
+    2023,
+    2024
+  ],
+  "test_year": 2025,
+  "requested_stock_count": 1907,
+  "workers": 8,
+  "maxiter": 100,
+  "formula_config": {
+    "seasonal_weight": 0.5,
+    "residual_alpha": 0.1,
+    "residual_strength": 0.0,
+    "growth_log_cap": 0.6931471805599453,
+    "correction_log_cap": 0.5
+  },
+  "weight_grid": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0
+  ],
+  "selection_score": "0.5 * pooled WMAPE + 0.5 * median stock WMAPE",
+  "finished_at": "2026-08-20T19:19:54+08:00",
+  "selected_sarima_weight": 0.1,
+  "selected_formula_weight": 0.9,
+  "complete_common_stock_count": 1635,
+  "failed_validation_stock_count": 0,
+  "test_sarima_source": "C:\\Users\\KAO\\Desktop\\code\\Project 0806\\Stock_Revenue_Predict-main\\sarima_forecast\\outputs\\full_universe_20260818\\monthly_predictions.csv"
+}
