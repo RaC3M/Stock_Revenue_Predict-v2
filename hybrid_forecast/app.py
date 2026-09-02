@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -13,6 +14,14 @@ BREAK_OUTPUT_DIR = SYSTEM_DIR / "outputs" / "structural_break_20260820"
 
 
 st.set_page_config(page_title="SARIMA＋營收公式", page_icon="📈", layout="wide")
+
+sys.path.insert(0, str(SYSTEM_DIR.parent))
+mode = st.sidebar.radio("運作模式", ["2025 測試沙盒", "實作模式"], index=1, key="forecast_mode")
+if mode == "實作模式":
+    from hybrid_forecast.live_ui import render_live_app
+
+    render_live_app()
+    st.stop()
 
 
 @st.cache_data(show_spinner=False)

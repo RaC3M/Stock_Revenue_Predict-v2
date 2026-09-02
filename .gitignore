@@ -36,6 +36,7 @@ free_taiwan_data/
 /target_stocks_2025.csv
 /manifest.json
 /drive-download-*.zip
+/new data/drive-download-*.zip
 
 # Backups and generated artifacts
 *.bak

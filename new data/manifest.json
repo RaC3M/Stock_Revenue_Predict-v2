@@ -1,0 +1,117 @@
+{
+  "data_contract_version": "canonical-csv-v1",
+  "dataset_role": "canonical_generated_csv",
+  "generator": "data_preprocessing.free_taiwan_data_preprocessor",
+  "generated_at_utc": "2026-08-27T11:46:58.245884Z",
+  "config": {
+    "source_dir": "C:\\Users\\noahb\\Desktop\\Predict\\free_taiwan_data",
+    "output_dir": "data",
+    "start_year": 2019,
+    "end_year": 2026,
+    "target_year": 2025,
+    "price_start_year": 2020,
+    "data_cutoff_date": "2026-07-28",
+    "stock_ids": null,
+    "stock_limit": null
+  },
+  "files": {
+    "stock_list": "stock_list_new.csv",
+    "revenue": "Stock_revenue_2019~2025.csv",
+    "target_stocks": "target_stocks_2025.csv",
+    "eps": "EPS2020~2025.csv",
+    "dividends": "Dividend2019~2025.csv",
+    "daily_prices": "day K2020~2025.csv"
+  },
+  "revenue_unit_contract": {
+    "revenue": "raw NTD",
+    "revenue_thousand": "thousand NTD",
+    "last_year_revenue": "raw NTD",
+    "last_3m_revenue": "raw NTD",
+    "last_12m_revenue": "raw NTD",
+    "acc_revenue": "raw NTD",
+    "mom": "decimal ratio",
+    "yoy": "decimal ratio",
+    "last_3m_revenue_yoy": "decimal ratio",
+    "last_12m_revenue_yoy": "decimal ratio",
+    "acc_revenue_yoy": "decimal ratio"
+  },
+  "row_counts": {
+    "stock_list": 2798,
+    "revenue": 166776,
+    "target_stocks": 23020,
+    "eps": 56154,
+    "dividends": 12462,
+    "daily_prices": 3009183
+  },
+  "stock_counts": {
+    "stock_list": 2798,
+    "revenue": 2030,
+    "target_stocks": 1958,
+    "eps": 2038,
+    "dividends": 1857,
+    "daily_prices": 2055
+  },
+  "stock_coverage": {
+    "stock_list": {
+      "stock_count": 2798,
+      "stock_list_coverage_ratio": 1.0
+    },
+    "revenue": {
+      "stock_count": 2030,
+      "stock_list_coverage_ratio": 0.725518227305218
+    },
+    "target_stocks": {
+      "stock_count": 1958,
+      "stock_list_coverage_ratio": 0.6997855611150822
+    },
+    "eps": {
+      "stock_count": 2038,
+      "stock_list_coverage_ratio": 0.7283774124374554
+    },
+    "dividends": {
+      "stock_count": 1857,
+      "stock_list_coverage_ratio": 0.6636883488205861
+    },
+    "daily_prices": {
+      "stock_count": 2055,
+      "stock_list_coverage_ratio": 0.7344531808434596
+    }
+  },
+  "validation": {
+    "data_dir": null,
+    "is_valid": true,
+    "issues": [],
+    "warnings": [
+      "revenue: 109 interior calendar gaps across 38 stocks"
+    ],
+    "row_counts": {
+      "stock_list": 2798,
+      "revenue": 166776,
+      "target_stocks": 23020,
+      "eps": 56154,
+      "dividends": 12462,
+      "daily_prices": 3009183
+    },
+    "stock_counts": {
+      "stock_list": 2798,
+      "revenue": 2030,
+      "target_stocks": 1958,
+      "eps": 2038,
+      "dividends": 1857,
+      "daily_prices": 2055
+    }
+  },
+  "file_sha256": {
+    "stock_list": "ae01e0c7347818f7859575af8f5e8f5b639e025f58bc7d615beb67b9a366e354",
+    "revenue": "a4a7db339eb2ca019519c5616c10b44250cc9915ba741a890497e451f9992551",
+    "target_stocks": "42563292869972445cbe9974e1d00640db07ceac1e27bdffc4269360c95ad5fa",
+    "eps": "8cdf0c1b7336b5f3aea5759fd0741157022c870ba4dbc2480ea1e99f02d0fee7",
+    "dividends": "153c8eb724e393ce4b40cc728f58970be27a418f68d4f3709b9ceac3d2b57858",
+    "daily_prices": "0db777e841985ac97e9fc553b0237e97028475a07ba5a771dbe0ec11bb8bf0c4"
+  },
+  "dividend_announcement_coverage": {
+    "rows_with_announcement_date": 12462,
+    "rows_with_cash_ex_dividend_date": 11416,
+    "rows_with_total_cash_dividend": 12462
+  }
+}

@@ -5,11 +5,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .contracts import FinancialForecastPolicy, FinancialForecastResult
+from .contracts import (
+    FinancialForecastPolicy, FinancialForecastResult,
+    EPS_METHOD_KNOWN_QUARTERS, DIVIDEND_METHOD_FIVE_YEAR_MEAN, DIVIDEND_METHOD_CLASSIFIED,
+)
 from .dividend import estimate_dividends
 from .eps import estimate_eps
 from .evidence import load_financial_evidence
 from .yield_calc import calculate_yields
+from .live_methods import estimate_known_quarters, estimate_five_year_dividends, estimate_classified_dividends
 
 
 REQUIRED_PREDICTION_COLUMNS = {
@@ -46,33 +50,51 @@ def forecast_financials(
         stock_ids=stock_ids,
         target_year=int(target_year),
         as_of_date=cutoff,
+        live=(EPS_METHOD_KNOWN_QUARTERS in policy.eps_methods
+              or DIVIDEND_METHOD_FIVE_YEAR_MEAN in policy.dividend_methods
+              or DIVIDEND_METHOD_CLASSIFIED in policy.dividend_methods),
     )
     annual_predictions, failures = _build_annual_predictions(normalized)
-
-    eps_parts = [
-        estimate_eps(
-            annual_predictions,
-            normalized,
-            evidence.revenue,
-            evidence.annual_eps,
-            evidence.quarterly_eps,
-            method,
+    if annual_predictions.empty:
+        return FinancialForecastResult(
+            pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), failures,
+            ["No complete finite annual revenue input.", *evidence.issues], data_status=evidence.data_status,
         )
-        for method in policy.eps_methods
-    ]
+
+    eps_parts = []
+    quarter_details = pd.DataFrame()
+    for method in policy.eps_methods:
+        if method == EPS_METHOD_KNOWN_QUARTERS:
+            estimate, quarter_details = estimate_known_quarters(annual_predictions, normalized, evidence)
+        else:
+            estimate = estimate_eps(
+                annual_predictions,
+                normalized,
+                evidence.revenue,
+                evidence.annual_eps,
+                evidence.quarterly_eps,
+                method,
+            )
+        eps_parts.append(estimate)
     eps_estimates = pd.concat(eps_parts, ignore_index=True) if eps_parts else pd.DataFrame()
 
-    dividend_parts = [
-        estimate_dividends(
-            eps_estimates,
-            evidence.dividends,
-            evidence.annual_eps,
-            target_year=int(target_year),
-            as_of_date=cutoff,
-            method=method,
-        )
-        for method in policy.dividend_methods
-    ]
+    dividend_parts = []
+    payout_details = pd.DataFrame()
+    for method in policy.dividend_methods:
+        if method == DIVIDEND_METHOD_CLASSIFIED:
+            estimate, payout_details = estimate_classified_dividends(eps_estimates, evidence, cutoff)
+        elif method == DIVIDEND_METHOD_FIVE_YEAR_MEAN:
+            estimate, payout_details = estimate_five_year_dividends(eps_estimates, evidence, cutoff)
+        else:
+            estimate = estimate_dividends(
+                eps_estimates,
+                evidence.dividends,
+                evidence.annual_eps,
+                target_year=int(target_year),
+                as_of_date=cutoff,
+                method=method,
+            )
+        dividend_parts.append(estimate)
     dividend_estimates = (
         pd.concat(dividend_parts, ignore_index=True) if dividend_parts else pd.DataFrame()
     )
@@ -109,6 +131,7 @@ def forecast_financials(
         f"Financial evidence is restricted to information available by {cutoff.date()}.",
         "as_of_price_yield uses the latest observed close at the cutoff and is deployable.",
         "target_month_end_yield uses target-year observed closes and is evaluation-only.",
+        *evidence.issues,
     ]
     return FinancialForecastResult(
         eps_estimates=eps_estimates,
@@ -117,6 +140,9 @@ def forecast_financials(
         summary=summary,
         failures=failures,
         notes=notes,
+        quarterly_eps_estimates=quarter_details,
+        payout_history=payout_details,
+        data_status=evidence.data_status,
     )
 
 
@@ -157,7 +183,8 @@ def _build_annual_predictions(
         source_family, model, stock_id, target_year = key
         months = sorted(group["target_month"].unique().tolist())
         duplicate_months = bool(group["target_month"].duplicated().any())
-        if months != list(range(1, 13)) or duplicate_months:
+        finite = bool(np.isfinite(group["predicted_revenue"]).all())
+        if months != list(range(1, 13)) or duplicate_months or not finite:
             failures.append(
                 {
                     "source_family": source_family,
@@ -168,7 +195,8 @@ def _build_annual_predictions(
                     "status": (
                         "duplicate monthly predictions"
                         if duplicate_months
-                        else f"incomplete monthly predictions ({len(months)}/12)"
+                        else ("nonfinite monthly predictions" if not finite
+                              else f"incomplete monthly predictions ({len(months)}/12)")
                     ),
                 }
             )

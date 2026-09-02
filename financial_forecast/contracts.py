@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 
 
 EPS_METHOD_CURRENT_RATIO = "current_ratio"
 EPS_METHOD_SEASONAL_QUARTER_MEDIAN = "seasonal_quarter_median"
+EPS_METHOD_KNOWN_QUARTERS = "known_quarters_plus_seasonal"
+DIVIDEND_METHOD_FIVE_YEAR_MEAN = "five_year_mean_payout"
+DIVIDEND_METHOD_CLASSIFIED = "historical_pattern_dividend"
 DIVIDEND_METHOD_ANNOUNCEMENT_SAFE_PAYOUT = "announcement_safe_payout_ratio"
 DIVIDEND_METHOD_ANNOUNCEMENT_SAFE_LAST = "announcement_safe_last_cash_dividend"
 DIVIDEND_METHOD_ANNOUNCEMENT_SAFE_MEDIAN = "announcement_safe_cash_dividend_median"
@@ -31,3 +34,6 @@ class FinancialForecastResult:
     summary: pd.DataFrame
     failures: pd.DataFrame
     notes: list[str]
+    quarterly_eps_estimates: pd.DataFrame = field(default_factory=pd.DataFrame)
+    payout_history: pd.DataFrame = field(default_factory=pd.DataFrame)
+    data_status: pd.DataFrame = field(default_factory=pd.DataFrame)
