@@ -41,6 +41,45 @@ def forecast_financials(
     are returned as failures rather than silently annualized.
     """
 
+    return _forecast_financials(
+        revenue_predictions,
+        target_year=target_year,
+        as_of_date=as_of_date,
+        data_dir=data_dir,
+        policy=policy,
+        include_prices=True,
+    )
+
+
+def forecast_financial_components(
+    revenue_predictions: pd.DataFrame,
+    *,
+    target_year: int,
+    as_of_date: str | pd.Timestamp,
+    data_dir: str | Path,
+    policy: FinancialForecastPolicy | None = None,
+) -> FinancialForecastResult:
+    """Estimate EPS and dividends without loading prices or calculating yields."""
+
+    return _forecast_financials(
+        revenue_predictions,
+        target_year=target_year,
+        as_of_date=as_of_date,
+        data_dir=data_dir,
+        policy=policy,
+        include_prices=False,
+    )
+
+
+def _forecast_financials(
+    revenue_predictions: pd.DataFrame,
+    *,
+    target_year: int,
+    as_of_date: str | pd.Timestamp,
+    data_dir: str | Path,
+    policy: FinancialForecastPolicy | None,
+    include_prices: bool,
+) -> FinancialForecastResult:
     policy = policy or FinancialForecastPolicy()
     cutoff = pd.Timestamp(as_of_date)
     normalized = _normalize_predictions(revenue_predictions, int(target_year))
@@ -53,6 +92,7 @@ def forecast_financials(
         live=(EPS_METHOD_KNOWN_QUARTERS in policy.eps_methods
               or DIVIDEND_METHOD_FIVE_YEAR_MEAN in policy.dividend_methods
               or DIVIDEND_METHOD_CLASSIFIED in policy.dividend_methods),
+        include_prices=include_prices,
     )
     annual_predictions, failures = _build_annual_predictions(normalized)
     if annual_predictions.empty:
@@ -98,13 +138,17 @@ def forecast_financials(
     dividend_estimates = (
         pd.concat(dividend_parts, ignore_index=True) if dividend_parts else pd.DataFrame()
     )
-    yield_estimates = calculate_yields(
-        dividend_estimates,
-        evidence.prices,
-        target_year=int(target_year),
-        as_of_date=cutoff,
-        yield_modes=policy.yield_modes,
-        min_stock_price=policy.min_stock_price,
+    yield_estimates = (
+        calculate_yields(
+            dividend_estimates,
+            evidence.prices,
+            target_year=int(target_year),
+            as_of_date=cutoff,
+            yield_modes=policy.yield_modes,
+            min_stock_price=policy.min_stock_price,
+        )
+        if include_prices
+        else pd.DataFrame()
     )
     if not yield_estimates.empty:
         monthly_values = normalized[
@@ -129,8 +173,14 @@ def forecast_financials(
     summary = _build_summary(dividend_estimates, yield_estimates)
     notes = [
         f"Financial evidence is restricted to information available by {cutoff.date()}.",
-        "as_of_price_yield uses the latest observed close at the cutoff and is deployable.",
-        "target_month_end_yield uses target-year observed closes and is evaluation-only.",
+        *(
+            [
+                "as_of_price_yield uses the latest observed close at the cutoff and is deployable.",
+                "target_month_end_yield uses target-year observed closes and is evaluation-only.",
+            ]
+            if include_prices
+            else ["Price-independent components only; yield has not been calculated."]
+        ),
         *evidence.issues,
     ]
     return FinancialForecastResult(
@@ -229,6 +279,11 @@ def _build_summary(
         "dividend_method",
     ]
     summary = dividends.copy()
+    if yields.empty:
+        for column in ["predicted_annual_revenue", "eps_reference_year"]:
+            if column in summary.columns:
+                summary[column] = pd.to_numeric(summary[column], errors="coerce").round().astype("Int64")
+        return summary
     as_of = yields[yields["yield_mode"].eq("as_of_price_yield")][
         key_columns + ["price_date", "stock_price", "estimated_yield_percent"]
     ].rename(

@@ -10,7 +10,17 @@ from financial_forecast.evidence import resolve_data_files
 from financial_forecast.dividend_patterns import load_dividend_patterns, PATTERN_LABELS
 from hybrid_forecast.dividend_report import format_dividend_catalog
 from hybrid_forecast.live_engine import (
-    LIVE_CACHE_VERSION, build_live_forecast, data_fingerprint, load_revenue_snapshot,
+    LIVE_CACHE_VERSION,
+    ForecastRequest,
+    apply_price_scenario,
+    build_llm_zip,
+    core_data_fingerprint,
+    data_fingerprint,
+    llm_payload_json,
+    load_latest_price,
+    load_or_build_forecast,
+    load_revenue_snapshot,
+    without_price_scenario,
 )
 
 
@@ -31,8 +41,13 @@ def load_inputs(data_dir: str, as_of: str, fingerprint: tuple):
 
 
 @st.cache_data(show_spinner=False)
-def run_live(stock: int, as_of: str, data_dir: str, fingerprint: tuple, version: str):
-    return build_live_forecast(stock, as_of, data_dir)
+def run_core(stock: int, as_of: str, data_dir: str, fingerprint: tuple, version: str):
+    return load_or_build_forecast(ForecastRequest(stock, as_of, data_dir))
+
+
+@st.cache_data(show_spinner=False)
+def load_observed_price(stock: int, as_of: str, data_dir: str, fingerprint: tuple):
+    return load_latest_price(ForecastRequest(stock, as_of, data_dir))
 
 
 @st.cache_data(show_spinner=False)
@@ -110,12 +125,13 @@ def render_live_app():
             file_name=f"filtered_dividend_labels_{as_of}.csv", mime="text/csv", key="live_download_filtered")
         st.download_button("下載全體五年判讀依據 CSV", catalog_detail.to_csv(index=False).encode("utf-8-sig"),
             file_name=f"dividend_evidence_{as_of}.csv", mime="text/csv", key="live_download_evidence")
-    identity = (int(stock), as_of, directory, fingerprint, LIVE_CACHE_VERSION)
+    core_fingerprint = core_data_fingerprint(directory)
+    identity = (int(stock), as_of, directory, core_fingerprint, LIVE_CACHE_VERSION)
     if run:
         try:
-            with st.spinner("正在預測至次年年底，並依配息分類計算股利與殖利率…"):
-                result = run_live(*identity)
-            st.session_state["live_result"] = result
+            with st.spinner("正在載入或建立營收、EPS 與股利 artifact…"):
+                core = run_core(*identity)
+            st.session_state["live_core"] = core
             st.session_state["live_result_key"] = identity
         except (OSError, ValueError, KeyError, ImportError, ArithmeticError) as error:
             st.error(f"這檔股票暫時無法完成預測：{error}")
@@ -123,14 +139,63 @@ def render_live_app():
     if st.session_state.get("live_result_key") != identity:
         st.info("按「執行實作預測」產生結果。更換股票、日期或 CSV 後須重新執行。")
         return
-    result = st.session_state["live_result"]
+    core = st.session_state["live_core"]
+    try:
+        observed_price = load_observed_price(int(stock), as_of, directory, fingerprint)
+    except (OSError, ValueError, KeyError):
+        observed_price = None
+    with st.sidebar:
+        st.divider()
+        manual_price = st.toggle("手動股價情境", value=False, key=f"live_manual_price_{stock}")
+        if manual_price:
+            default_price = float(observed_price[0]) if observed_price is not None else 1.0
+            scenario_price = st.number_input(
+                "情境股價（元）", min_value=0.01, value=max(default_price, 0.01),
+                step=0.1, key=f"live_scenario_price_{stock}",
+            )
+            scenario_date = st.date_input(
+                "情境價格日期", value=selected_date, max_value=selected_date,
+                key=f"live_scenario_price_date_{stock}",
+            )
+    try:
+        if manual_price:
+            result = apply_price_scenario(
+                core, stock_price=scenario_price, price_date=scenario_date,
+                price_source="manual_scenario",
+            )
+        elif observed_price is not None:
+            result = apply_price_scenario(
+                core, stock_price=observed_price[0], price_date=observed_price[1],
+                price_source="observed_csv",
+            )
+        else:
+            result = without_price_scenario(core)
+    except ValueError as error:
+        st.error(f"無法重新計價：{error}")
+        return
     summary = result.summary
     priced_rows = summary.dropna(subset=["as_of_stock_price"]) if "as_of_stock_price" in summary else pd.DataFrame()
     price_row = priced_rows.iloc[0] if not priced_rows.empty else pd.Series(dtype=object)
     price, price_date = price_row.get("as_of_stock_price"), price_row.get("as_of_price_date")
     price_text = _number(price)
     date_text = pd.Timestamp(price_date).strftime("%Y/%m/%d") if pd.notna(price_date) else "無可用日期"
-    st.info(f"兩年共同計價股價：{price_text} 元｜價格日期：{date_text}。使用 CSV 最新可得收盤價。")
+    source_text = {
+        "manual_scenario": "手動情境（非市場觀測）",
+        "observed_csv": "CSV 最新可得收盤價",
+    }.get(result.price_source, "無可用股價")
+    st.info(f"兩年共同計價股價：{price_text} 元｜價格日期：{date_text}｜來源：{source_text}。")
+    cache_label = "已重用持久化 artifact" if result.cache_hit else "本次新建 artifact"
+    st.caption(f"{cache_label}｜ID：{result.artifact_id}｜產生時間：{result.generated_at}")
+    with st.expander("本次計算公式", expanded=False):
+        st.markdown(
+            """
+- **營收公式**：近三個月 YoY log 成長率中位數，套用去年同月後，再與上月營收於 `log1p` 空間各取 50%。
+- **混合營收**：`0.1 × SARIMA + 0.9 × 營收公式`；其中一個模型失效時採有效值。
+- **全年稅後 EPS**：已公布單季 EPS＋未公布季營收 × 歷史同季 EPS／營收比率中位數。
+- **現金股利**：依配息分類使用五年股利中位數、0，或預估 EPS × 歷史平均配息率。
+- **現金殖利率**：`預估每股現金股利 ÷ 指定股價 × 100%`。
+            """
+        )
     for pane, (_, row) in zip(st.columns(2), summary.iterrows()):
         with pane:
             year = int(row["target_year"])
@@ -151,7 +216,7 @@ def render_live_app():
             if status != "ok":
                 st.warning({"EPS unavailable": "季度 EPS 估計依據不足", "payout unavailable": "配息紀錄或有效 EPS 配對不足，無法估算股利",
                     "price unavailable": "缺少有效股價"}.get(status, status))
-    st.caption("EPS 為公司稅後獲利；股利金額未另扣個人所得稅或補充保費。年度表示獲利所屬年，不表示領息年。")
+    st.caption("EPS 為公司單季／全年稅後 EPS；本系統未分別建模稅後淨利與加權平均股數，股利也未另扣個人所得稅或補充保費。")
     monthly_tab, eps_tab, payout_tab, source_tab = st.tabs(["月營收", "季度 EPS", "配息分類與五年依據", "資料與方法"])
     with monthly_tab:
         frame = result.monthly
@@ -197,6 +262,19 @@ def render_live_app():
             st.write(note)
         st.dataframe(result.order_search, width="stretch", hide_index=True)
     export_prefix = f"hybrid_{stock}_{as_of}"
+    llm_json = llm_payload_json(result, stock_name=str(names.get(stock, "")) or None)
+    llm_zip = build_llm_zip(result, stock_name=str(names.get(stock, "")) or None)
+    llm_columns = st.columns(2)
+    llm_columns[0].download_button(
+        "下載 LLM JSON 主檔", llm_json.encode("utf-8"),
+        file_name=f"{export_prefix}_llm.json", mime="application/json",
+        key="live_download_llm_json",
+    )
+    llm_columns[1].download_button(
+        "下載 JSON＋CSV 完整資料包", llm_zip,
+        file_name=f"{export_prefix}_bundle.zip", mime="application/zip",
+        key="live_download_llm_zip",
+    )
     for column, (label, frame, suffix) in zip(st.columns(4), [
         ("年度摘要", result.summary, "annual"), ("月營收", result.monthly, "monthly"),
         ("季度 EPS", result.quarterly_eps, "eps"), ("配息率明細", result.payout_history, "payout"),

@@ -33,17 +33,24 @@ def load_financial_evidence(
     target_year: int,
     as_of_date: pd.Timestamp,
     live: bool = False,
+    include_prices: bool = True,
 ) -> FinancialEvidence:
     root = Path(data_dir)
     if live:
-        return _load_available_evidence(root, stock_ids, target_year, as_of_date)
+        return _load_available_evidence(
+            root, stock_ids, target_year, as_of_date, include_prices=include_prices
+        )
     annual_eps, quarterly_eps = _load_eps(root / EPS_FILENAME, stock_ids, as_of_date)
     return FinancialEvidence(
         revenue=_load_revenue(root / REVENUE_FILENAME, stock_ids),
         annual_eps=annual_eps,
         quarterly_eps=quarterly_eps,
         dividends=_load_dividends(root / DIVIDEND_FILENAME, stock_ids),
-        prices=_load_prices(root / PRICE_FILENAME, stock_ids, target_year),
+        prices=(
+            _load_prices(root / PRICE_FILENAME, stock_ids, target_year)
+            if include_prices
+            else pd.DataFrame(columns=["stock_id", "date", "close"])
+        ),
     )
 
 
@@ -217,8 +224,27 @@ def resolve_data_files(data_dir: str | Path) -> dict[str, Path]:
     return {kind: root / name for kind, name in names.items()}
 
 
+def load_available_prices(
+    data_dir: str | Path,
+    *,
+    stock_ids: set[int],
+    as_of_date: str | pd.Timestamp,
+) -> pd.DataFrame:
+    """Load observed closes available at or before a cutoff date."""
+
+    cutoff = pd.Timestamp(as_of_date).normalize()
+    path = resolve_data_files(data_dir)["daily_prices"]
+    prices = _load_prices(path, set(map(int, stock_ids)), cutoff.year)
+    return prices[pd.to_datetime(prices["date"]).le(cutoff)].reset_index(drop=True)
+
+
 def _load_available_evidence(
-    root: Path, stock_ids: set[int], target_year: int, as_of_date: pd.Timestamp,
+    root: Path,
+    stock_ids: set[int],
+    target_year: int,
+    as_of_date: pd.Timestamp,
+    *,
+    include_prices: bool = True,
 ) -> FinancialEvidence:
     paths = resolve_data_files(root)
     issues: list[str] = []
@@ -238,13 +264,15 @@ def _load_available_evidence(
     ))
     dividends = capture("dividends", lambda: _load_dividends(paths["dividends"], stock_ids, as_of_date),
         pd.DataFrame(columns=["stock_id", "fiscal_year", "TotalCashDividend", "available_date", "ex_dividend_date"]))
-    prices = capture("daily_prices", lambda: _load_prices(paths["daily_prices"], stock_ids, target_year),
-        pd.DataFrame(columns=["stock_id", "date", "close"]))
-    prices = prices[pd.to_datetime(prices["date"]).le(as_of_date)].copy()
-    prices = prices[np.isfinite(pd.to_numeric(prices["close"], errors="coerce"))]
-    if prices.duplicated(["stock_id", "date"]).any():
-        issues.append("daily_prices: 股價有重複的股票／日期")
-        prices = prices.iloc[:0]
+    prices = pd.DataFrame(columns=["stock_id", "date", "close"])
+    if include_prices:
+        prices = capture("daily_prices", lambda: _load_prices(paths["daily_prices"], stock_ids, target_year),
+            prices)
+        prices = prices[pd.to_datetime(prices["date"]).le(as_of_date)].copy()
+        prices = prices[np.isfinite(pd.to_numeric(prices["close"], errors="coerce"))]
+        if prices.duplicated(["stock_id", "date"]).any():
+            issues.append("daily_prices: 股價有重複的股票／日期")
+            prices = prices.iloc[:0]
     eps_period = (pd.to_datetime(dict(year=quarterly["eps_year"], month=quarterly["eps_quarter"] * 3, day=1))
         + pd.offsets.MonthEnd(0)).max() if not quarterly.empty else pd.NaT
     status = []
@@ -252,7 +280,10 @@ def _load_available_evidence(
         ("revenue", revenue, pd.to_datetime(revenue["date"]).max(), pd.to_datetime(revenue["available_date"]).max()),
         ("eps", quarterly, eps_period, pd.to_datetime(quarterly["latest_available_date"]).max()),
         ("dividends", dividends, pd.NaT, pd.to_datetime(dividends["available_date"]).max()),
-        ("daily_prices", prices, pd.to_datetime(prices["date"]).max(), pd.to_datetime(prices["date"]).max()),
+        *(
+            [("daily_prices", prices, pd.to_datetime(prices["date"]).max(), pd.to_datetime(prices["date"]).max())]
+            if include_prices else []
+        ),
     ]:
         status.append({"dataset": kind, "source": str(paths[kind]), "latest_period": period,
             "latest_available_date": available, "rows": len(frame),

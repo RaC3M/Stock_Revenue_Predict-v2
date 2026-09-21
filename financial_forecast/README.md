@@ -10,6 +10,16 @@ Public interface:
 from financial_forecast import FinancialForecastPolicy, forecast_financials
 ```
 
+需要把價格與上游預測分離時，可使用：
+
+```python
+from financial_forecast import forecast_financial_components, calculate_as_of_yields
+```
+
+`forecast_financial_components()` 只估算 EPS 與現金股利，不讀取股價檔。
+`calculate_as_of_yields()` 可以新價格對已產生的股利結果重新計價。原有
+`forecast_financials()` 仍保持原來的一次完成介面。
+
 The monthly input contract requires:
 
 - `source_family`

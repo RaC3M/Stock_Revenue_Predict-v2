@@ -66,6 +66,37 @@ def calculate_yields(
     return pd.DataFrame(rows)
 
 
+def calculate_as_of_yields(
+    dividend_estimates: pd.DataFrame,
+    *,
+    stock_price: float,
+    price_date: str | pd.Timestamp,
+    price_source: str,
+    min_stock_price: float = 0.0,
+) -> pd.DataFrame:
+    """Reprice dividend estimates without rerunning revenue or financial models."""
+
+    price = float(stock_price)
+    date = pd.Timestamp(price_date).normalize()
+    if not np.isfinite(price) or price <= float(min_stock_price):
+        raise ValueError("stock_price must be finite and greater than min_stock_price")
+    price_row = pd.Series({"date": date, "close": price})
+    return pd.DataFrame(
+        [
+            _yield_row(
+                dividend,
+                mode=YIELD_MODE_AS_OF_PRICE,
+                target_month=pd.NA,
+                price_row=price_row,
+                min_stock_price=min_stock_price,
+                is_evaluation=False,
+                price_source_override=str(price_source),
+            )
+            for _, dividend in dividend_estimates.iterrows()
+        ]
+    )
+
+
 def _yield_row(
     dividend: pd.Series,
     *,
@@ -74,6 +105,7 @@ def _yield_row(
     price_row: pd.Series | None,
     min_stock_price: float,
     is_evaluation: bool,
+    price_source_override: str | None = None,
 ) -> dict[str, object]:
     price = float(price_row["close"]) if price_row is not None else np.nan
     price_date = pd.Timestamp(price_row["date"]) if price_row is not None else pd.NaT
@@ -98,9 +130,13 @@ def _yield_row(
             "price_date": price_date,
             "stock_price": price,
             "price_source": (
-                "latest observed close at or before as_of_date"
-                if mode == YIELD_MODE_AS_OF_PRICE
-                else "target-year month-end observed close (evaluation)"
+                price_source_override
+                if price_source_override is not None
+                else (
+                    "latest observed close at or before as_of_date"
+                    if mode == YIELD_MODE_AS_OF_PRICE
+                    else "target-year month-end observed close (evaluation)"
+                )
             ),
             "estimated_yield_percent": estimated_yield,
             "actual_yield_percent": actual_yield,
